@@ -2,7 +2,7 @@
 // EasyBudget — Auth Module (API-based + SQLite)
 // ─────────────────────────────────────────────
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://easy-budget-analisis-pe.onrender.com/api';
 const DB_SESSION = 'eb_session';
 
 /* ── Session helpers ── */
