@@ -35,10 +35,10 @@ def create_app() -> Flask:
 
     return app
 
+app = create_app()
+
+# Initialize DB when the app is created (useful for Render deployments)
+init_db()
 
 if __name__ == "__main__":
-    # Create tables on startup
-    init_db()
-
-    app = create_app()
     app.run(host="0.0.0.0", port=5000, debug=True)
