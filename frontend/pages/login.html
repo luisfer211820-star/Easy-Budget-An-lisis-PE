@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciar Sesión — EasyBudget</title>
+  <meta name="description" content="Inicia sesión en EasyBudget.">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card" role="main">
+    <div class="auth-logo">
+      <div class="logo-icon">💰</div>
+      <span class="logo-text">EasyBudget</span>
+    </div>
+
+    <h1 class="auth-title">Bienvenido</h1>
+    <p class="auth-subtitle">Ingresa tus datos para continuar</p>
+
+    <div class="alert alert-error" id="alertError" role="alert"></div>
+
+    <form id="loginForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="email">Correo electrónico</label>
+        <input class="form-input" type="email" id="email" placeholder="tu@correo.com" autocomplete="email" required>
+        <span class="form-error" id="emailError"></span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Contraseña</label>
+        <input class="form-input" type="password" id="password" placeholder="••••••••" autocomplete="current-password" required>
+        <span class="form-error" id="passwordError"></span>
+      </div>
+
+      <button class="btn btn-primary" type="submit" id="submitBtn">
+        <span id="btnText">Iniciar sesión</span>
+      </button>
+    </form>
+
+    <div class="auth-switch">
+      ¿No tienes cuenta? <a href="register.html">Regístrate</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { login, getSession } from '../js/auth.js';
+
+    if (getSession()) window.location.href = 'dashboard.html';
+
+    const form = document.getElementById('loginForm');
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    const alertError = document.getElementById('alertError');
+    const btnText = document.getElementById('btnText');
+
+    function showFieldError(inputEl, errorId, msg) {
+      inputEl.classList.add('error');
+      const err = document.getElementById(errorId);
+      err.textContent = msg;
+      err.classList.add('visible');
+    }
+    
+    function clearErrors() {
+      [emailEl, passwordEl].forEach(el => el.classList.remove('error'));
+      document.querySelectorAll('.form-error').forEach(e => e.classList.remove('visible'));
+      alertError.classList.remove('visible');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const email = emailEl.value.trim();
+      const password = passwordEl.value;
+      let valid = true;
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showFieldError(emailEl, 'emailError', 'Ingresa un correo válido.');
+        valid = false;
+      }
+      if (!password || password.length < 6) {
+        showFieldError(passwordEl, 'passwordError', 'La contraseña debe tener al menos 6 caracteres.');
+        valid = false;
+      }
+      if (!valid) return;
+
+      btnText.textContent = 'Ingresando…';
+      document.getElementById('submitBtn').disabled = true;
+
+      const result = await login(email, password);
+      if (result.ok) {
+        window.location.href = 'dashboard.html';
+      } else {
+        alertError.textContent = result.error;
+        alertError.classList.add('visible');
+        btnText.textContent = 'Iniciar sesión';
+        document.getElementById('submitBtn').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

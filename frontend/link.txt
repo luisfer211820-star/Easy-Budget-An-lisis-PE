@@ -1,0 +1,10 @@
+Ejecutar en carpeta:
+cd backend
+cd src
+python app.py
+En otra terminal
+cd frontend 
+python -m http.server 8000
+http://localhost:8000/pages/login.html
+
+cd "C:\Users\Acer Nitro 5\Desktop\Easybudget1\EasyBudget\frontend"

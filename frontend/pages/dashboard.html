@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — EasyBudget</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, .65);
+      backdrop-filter: blur(6px);
+      display: grid; place-items: center;
+      z-index: 500; padding: 20px;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 36px 32px;
+      width: 100%; max-width: 480px;
+      box-shadow: var(--shadow-card), var(--shadow-glow);
+      animation: cardIn .25s ease both;
+    }
+    .modal-header {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 24px;
+    }
+    .modal-header h3 { font-size: 19px; font-weight: 700; }
+    .btn-close {
+      background: none; border: none;
+      color: var(--text-muted); font-size: 20px;
+      cursor: pointer; padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      transition: color var(--transition), background var(--transition);
+      line-height: 1;
+    }
+    .btn-close:hover { color: var(--text-primary); background: rgba(255,255,255,.07); }
+    .nav-item { cursor: pointer !important; opacity: 1 !important; transition: background var(--transition); }
+    .nav-item:hover { background: rgba(99,102,241,.15) !important; }
+    .nav-item.active { background: rgba(99,102,241,.18) !important; color: var(--primary-light) !important; border-color: var(--border) !important; }
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .empty-icon { font-size: 48px; margin-bottom: 14px; }
+    .empty-state p { font-size: 15px; }
+    .empty-state .empty-hint { font-size: 13px; margin-top: 8px; }
+    tbody tr { transition: background var(--transition); }
+    tbody tr:hover { background: rgba(99,102,241,.05); }
+    .confirm-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      backdrop-filter: blur(4px);
+      display: grid; place-items: center;
+      z-index: 600; padding: 20px;
+    }
+    .confirm-overlay.hidden { display: none; }
+    .confirm-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(239,68,68,.35);
+      border-radius: var(--radius-xl);
+      padding: 32px 28px; max-width: 380px; width: 100%;
+      text-align: center; box-shadow: var(--shadow-card);
+      animation: cardIn .2s ease both;
+    }
+    .confirm-icon { font-size: 40px; margin-bottom: 12px; }
+    .confirm-card h4 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .confirm-card p { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
+    .confirm-actions { display: flex; gap: 10px; }
+    .toast-success { border-color: rgba(16,185,129,.35); }
+    .toast-error   { border-color: rgba(239,68,68,.35); color: #fca5a5; }
+    .toast-info    { border-color: rgba(99,102,241,.35); }
+
+    /* ── Deleted Products Styling ── */
+    .deleted-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      background: rgba(239,68,68,.12);
+      color: #fca5a5;
+      border: 1px solid rgba(239,68,68,.25);
+    }
+    .btn-restore {
+      background: rgba(16,185,129,.12);
+      color: #6ee7b7;
+      border: 1px solid rgba(16,185,129,.25);
+      padding: 7px 14px;
+      font-size: 13px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-restore:hover { background: rgba(16,185,129,.22); transform: translateY(-1px); }
+    .deleted-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      background: rgba(239,68,68,.2);
+      color: #fca5a5;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: auto;
+      padding: 0 6px;
+    }
+    .section-header h2 .view-indicator {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+    
+    /* Inline Analysis */
+    .inline-analysis {
+      margin-top: 24px;
+      display: none; /* hidden by default */
+    }
+    .inline-analysis.visible {
+      display: block;
+      animation: cardIn 0.3s ease both;
+    }
+    .report-kpis {
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 20px;
+    }
+    .kpi-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .kpi-value { font-size: 24px; font-weight: 800; color: var(--text-primary); margin-bottom: 2px; }
+    .kpi-sub { font-size: 12px; color: var(--text-secondary); }
+    .kpi-icon { float: right; font-size: 24px; opacity: 0.8; }
+    .recommendation-card {
+      padding: 16px 20px; border-radius: var(--radius-md);
+      background: rgba(99,102,241,.08); border: 1px solid var(--border);
+      margin-top: 24px;
+    }
+    .rec-high { border-color: rgba(16,185,129,.3); background: rgba(16,185,129,.05); }
+    .rec-medium { border-color: rgba(234,179,8,.3); background: rgba(234,179,8,.05); }
+    .rec-low { border-color: rgba(239,68,68,.3); background: rgba(239,68,68,.05); }
+    .rec-title { font-weight: 700; margin-bottom: 4px; font-size: 14px; }
+    .rec-text { font-size: 13px; color: var(--text-secondary); }
+
+    /* Multiproduct */
+    .multi-analysis {
+      margin-top: 24px;
+      display: none;
+    }
+    .multi-analysis.visible {
+      display: block;
+      animation: cardIn 0.3s ease both;
+    }
+    .multi-product-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;
+      margin-bottom: 20px;
+    }
+    .multi-product-selector {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 14px;
+      cursor: pointer; transition: all var(--transition);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .multi-product-selector:hover { border-color: rgba(99,102,241,.4); background: rgba(99,102,241,.05); }
+    .multi-product-selector.selected {
+      border-color: rgba(99,102,241,.6);
+      background: rgba(99,102,241,.12);
+    }
+    .multi-product-selector input[type=checkbox] {
+      width: 16px; height: 16px; accent-color: #6366f1; cursor: pointer;
+    }
+    .multi-product-selector .mp-name { font-weight: 600; font-size: 13px; }
+    .multi-product-selector .mp-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .multi-result-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .multi-result-table th { text-align: left; color: var(--text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    .multi-result-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.04); }
+    .multi-result-table tr:hover td { background: rgba(99,102,241,.04); }
+    .multi-pe-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(99,102,241,.12); color: var(--primary-light);
+      border: 1px solid rgba(99,102,241,.25); border-radius: 99px;
+      padding: 3px 10px; font-size: 12px; font-weight: 700;
+    }
+    .multi-warn { background: rgba(234,179,8,.08); border: 1px solid rgba(234,179,8,.25); border-radius: var(--radius-md); padding: 12px 16px; font-size: 13px; color: #fde68a; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+  <div class="app-layout">
+
+    <nav class="topnav">
+      <div class="nav-brand">
+        <div class="logo-icon">💰</div>
+        <span class="logo-text">EasyBudget</span>
+      </div>
+      <div class="nav-user">
+        <span class="user-name" id="userName">Cargando…</span>
+        <div class="user-avatar" id="userAvatar">?</div>
+        <button class="btn btn-secondary btn-sm" id="logoutBtn">Salir</button>
+      </div>
+    </nav>
+
+    <aside class="sidebar">
+      <span class="sidebar-label">Menú</span>
+      <div class="nav-item active" id="menuProductos">
+        <span class="nav-icon">📦</span> Mis Productos
+      </div>
+      <div class="nav-item" id="menuInventario">
+        <span class="nav-icon">📊</span> Inventario
+      </div>
+      <div class="nav-item" id="menuEliminados">
+        <span class="nav-icon">🗑️</span> Productos eliminados
+        <span class="deleted-count hidden" id="deletedCount">0</span>
+      </div>
+      <span class="sidebar-label">Acciones</span>
+      <div class="nav-item" id="btnAbrirModal">
+        <span class="nav-icon">➕</span> Agregar Producto
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="section-header">
+        <div>
+          <h2 id="sectionTitle">Mis Productos</h2>
+          <p id="subtitleCount">Cargando productos…</p>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center" id="headerActions">
+          <div style="display:flex; gap:5px; align-items:center; background:var(--bg-card); padding:4px 8px; border-radius:var(--radius-sm); border:1px solid var(--border)">
+            <input type="date" id="filterDesde" title="Fecha desde" style="background:transparent; border:none; color:var(--text-primary); font-size:12px; outline:none; font-family:inherit">
+            <span style="color:var(--text-muted)">-</span>
+            <input type="date" id="filterHasta" title="Fecha hasta" style="background:transparent; border:none; color:var(--text-primary); font-size:12px; outline:none; font-family:inherit">
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btnMulti">📊 Multiproducto</button>
+          <button class="btn btn-accent btn-sm" id="btnAgregarHeader">➕ Agregar Producto</button>
+        </div>
+      </div>
+
+      <div class="card" id="productosCard">
+        <div class="table-wrapper" id="tableWrapper">
+          <table>
+            <thead>
+              <tr id="tableHead">
+                <th>Producto</th>
+                <th>Costos y Precio</th>
+                <th>Punto de Eq. (uds / $)</th>
+                <th>Margen (Contribución)</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="productsBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state hidden" id="emptyState">
+          <div class="empty-icon">📦</div>
+          <p id="emptyMsg">No tienes productos registrados aún.</p>
+          <p class="empty-hint" id="emptyHint">Haz clic en <strong>➕ Agregar Producto</strong> para comenzar.</p>
+        </div>
+      </div>
+
+      <!-- INLINE ANALYSIS SECTION -->
+      <div class="inline-analysis" id="inlineAnalysis">
+        <div class="section-header" style="margin-top: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--border); margin-bottom: 20px;">
+          <div>
+            <h2 id="iaTitle">Análisis: Producto</h2>
+            <p style="font-size: 13px; color: var(--text-muted);">Punto de Equilibrio y Rentabilidad</p>
+          </div>
+          <div style="display:flex; gap:10px">
+            <a href="#" class="btn btn-secondary btn-sm" id="iaReportBtn" target="_blank">📋 Ver Reporte (PDF)</a>
+            <button class="btn btn-secondary btn-sm" id="iaCloseBtn">✕ Cerrar</button>
+          </div>
+        </div>
+
+        <div class="report-kpis">
+          <div class="kpi-card">
+            <div class="kpi-icon">💡</div>
+            <div class="kpi-label">Margen de Contribución</div>
+            <div class="kpi-value" id="iaKpiContrib">—</div>
+            <div class="kpi-sub" id="iaKpiContribPct">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon">⚖️</div>
+            <div class="kpi-label">Punto de Equilibrio</div>
+            <div class="kpi-value" id="iaKpiPeUnits">—</div>
+            <div class="kpi-sub">unidades para cubrir costos</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon">💵</div>
+            <div class="kpi-label">PE en Pesos</div>
+            <div class="kpi-value" id="iaKpiPeMoney">—</div>
+            <div class="kpi-sub">ingresos mínimos requeridos</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-title" style="font-size: 14px; font-weight: 600; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+            <span class="card-icon">📈</span> Costos vs Ingresos
+          </div>
+          <div class="chart-container" style="height:320px; position: relative;">
+            <canvas id="iaChart"></canvas>
+          </div>
+        </div>
+
+        <div id="iaRecommendation" class="recommendation-card">
+          <div class="rec-title" id="iaRecTitle">—</div>
+          <div class="rec-text" id="iaRecText">—</div>
+        </div>
+      </div>
+
+      <!-- MULTIPRODUCT ANALYSIS SECTION -->
+      <div class="multi-analysis" id="multiAnalysis">
+        <div class="section-header" style="margin-top:10px; padding-bottom:15px; border-bottom:1px solid var(--border); margin-bottom:20px;">
+          <div>
+            <h2>📊 Análisis Multiproducto</h2>
+            <p style="font-size:13px; color:var(--text-muted);">Punto de equilibrio combinado para varios productos</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="multiCloseBtn">✕ Cerrar</button>
+        </div>
+
+        <!-- Step 1: Costo Fijo Global -->
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="font-size:13px; font-weight:700; margin-bottom:12px;">1️⃣ Costo Fijo Global Mensual ($)</div>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <input type="number" id="multiFixedCost" class="form-input" placeholder="Ej: 800000" min="0" style="max-width:260px;">
+            <button class="btn btn-accent btn-sm" id="multiCalcBtn">⚡ Calcular Equilibrio</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Seleccionar productos -->
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="font-size:13px; font-weight:700; margin-bottom:12px;">2️⃣ Selecciona los productos a incluir</div>
+          <div class="multi-product-grid" id="multiProductGrid"><!-- filled by JS --></div>
+        </div>
+
+        <!-- Step 3: Results -->
+        <div id="multiResults" style="display:none;">
+          <div id="multiWarn" class="multi-warn" style="display:none;"></div>
+          <div class="report-kpis" style="margin-bottom:20px;">
+            <div class="kpi-card">
+              <div class="kpi-icon">⚖️</div>
+              <div class="kpi-label">PE General (Unidades)</div>
+              <div class="kpi-value" id="mKpiPeGeneral">—</div>
+              <div class="kpi-sub">unidades totales</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon">💰</div>
+              <div class="kpi-label">Costo Fijo Total</div>
+              <div class="kpi-value" id="mKpiFixedCost">—</div>
+              <div class="kpi-sub">distribuido entre productos</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon">📦</div>
+              <div class="kpi-label">Productos Analizados</div>
+              <div class="kpi-value" id="mKpiCount">—</div>
+              <div class="kpi-sub">productos seleccionados</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title" style="font-size:13px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+              <span>📈</span> Ingresos vs Costos por Producto
+            </div>
+            <div style="height:420px; position:relative;">
+              <canvas id="multiChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="font-size:13px; font-weight:700; margin-bottom:14px;">📋 Punto de Equilibrio por Producto</div>
+            <div class="table-wrapper">
+              <table class="multi-result-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>CMU ($)</th>
+                    <th>Participación (%)</th>
+                    <th>PE Unidades</th>
+                    <th>PE en Pesos</th>
+                  </tr>
+                </thead>
+                <tbody id="multiResultBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVENTORY ANALYSIS SECTION (Sprint 4) -->
+      <div class="multi-analysis" id="inventoryAnalysis">
+        <div class="section-header" style="margin-top:10px; padding-bottom:15px; border-bottom:1px solid var(--border); margin-bottom:20px;">
+          <div>
+            <h2>📦 Inventario vs Punto de Equilibrio</h2>
+            <p style="font-size:13px; color:var(--text-muted);">Comparativa visual de tu stock actual frente al mínimo requerido (PE)</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="font-size:13px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+            <span>📈</span> Stock vs Punto de Equilibrio (Unidades)
+          </div>
+          <div style="height:350px; position:relative;">
+            <canvas id="inventoryChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title" style="font-size:13px; font-weight:700; margin-bottom:14px;">🛍️ Recomendaciones de Compra (Ordenado por margen)</div>
+          <div class="table-wrapper">
+            <table class="multi-result-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Margen (%)</th>
+                  <th>Stock Actual</th>
+                  <th>Punto Equilibrio</th>
+                  <th>Faltante (uds)</th>
+                  <th>Prioridad</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryResultBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL Agregar / Editar -->
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle">Agregar Producto</h3>
+        <button class="btn-close" id="btnCerrarModal">✕</button>
+      </div>
+      <div class="alert alert-error hidden" id="modalError" role="alert"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="inputNombre">Nombre del producto *</label>
+        <input class="form-input" id="inputNombre" type="text" placeholder="Ej: Camiseta azul talla M" autocomplete="off">
+        <span class="form-error" id="errNombre"></span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px">
+        <div class="form-group">
+          <label class="form-label" for="inputCostoFijo">Costo Fijo mensual ($) *</label>
+          <input class="form-input" id="inputCostoFijo" type="number" placeholder="Ej: 500000" min="0">
+          <span class="form-error" id="errCostoFijo"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="inputCostoVar">Costo Variable unitario ($) *</label>
+          <input class="form-input" id="inputCostoVar" type="number" placeholder="Ej: 12000" min="0">
+          <span class="form-error" id="errCostoVar"></span>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px">
+        <div class="form-group">
+          <label class="form-label" for="inputPrecio">Precio de Venta unitario ($) *</label>
+          <input class="form-input" id="inputPrecio" type="number" placeholder="Ej: 35000" min="0">
+          <span class="form-error" id="errPrecio"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="inputUnidades">Unidades pronosticadas *</label>
+          <input class="form-input" id="inputUnidades" type="number" placeholder="Ej: 100" min="1">
+          <span class="form-error" id="errUnidades"></span>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label class="form-label" for="inputStock">Stock actual (unidades)</label>
+        <input class="form-input" id="inputStock" type="number" placeholder="Ej: 50" min="0">
+        <span class="form-error" id="errStock"></span>
+      </div>
+
+      <div id="marginPreview" class="hidden"
+           style="background:rgba(99,102,241,.08);border:1px solid var(--border);
+                  border-radius:var(--radius-md);padding:12px 16px;margin-bottom:18px;
+                  font-size:13px;color:var(--text-secondary);">
+        <span id="marginPreviewText"></span>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:4px">
+        <button class="btn btn-secondary" id="btnCancelar" style="flex:1">Cancelar</button>
+        <button class="btn btn-accent" id="btnGuardar" style="flex:1">
+          <span id="btnGuardarText">💾 Guardar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRM Eliminar -->
+  <div class="confirm-overlay hidden" id="confirmOverlay">
+    <div class="confirm-card">
+      <div class="confirm-icon">🗑️</div>
+      <h4 id="confirmTitulo">¿Eliminar producto?</h4>
+      <p id="confirmMsg">Esta acción no se puede deshacer.</p>
+      <div class="confirm-actions">
+        <button class="btn btn-secondary" id="confirmCancelar" style="flex:1">Cancelar</button>
+        <button class="btn btn-danger" id="confirmEliminar" style="flex:1">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script type="module">
+    import { getSession, logout } from '../js/auth.js';
+    import { getProducts, getDeletedProducts, saveProduct, updateProduct, deleteProduct, restoreProduct, fmt, analyzeProduct, analyzeMultiEquilibrium, downloadCSV, analyzeInventory, updateStock } from '../js/products.js';
+
+    const session = getSession();
+    if (!session) { window.location.href = 'login.html'; }
+
+    document.getElementById('userName').textContent   = session.name;
+    document.getElementById('userAvatar').textContent = session.name.charAt(0).toUpperCase();
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      abrirConfirm('¿Cerrar sesión?', 'Se cerrará tu sesión actual.', () => logout());
+    });
+
+    // ── Multiproduct Analysis ──
+    document.getElementById('btnMulti').addEventListener('click', async () => {
+      // Hide inline analysis if open
+      document.getElementById('inlineAnalysis').classList.remove('visible');
+      // Load products into selector
+      const productos = await getProducts();
+      const grid = document.getElementById('multiProductGrid');
+      if (!productos.length) {
+        toast('No tienes productos activos para analizar.', 'error');
+        return;
+      }
+      grid.innerHTML = productos.map(p => {
+        const cmu = p.salePrice - p.variableCost;
+        return `
+          <label class="multi-product-selector" for="mp_${p.id}">
+            <input type="checkbox" id="mp_${p.id}" value="${p.id}" class="mp-check">
+            <div>
+              <div class="mp-name">${p.name}</div>
+              <div class="mp-sub">CMU: ${fmt(cmu)} · ${p.forecastUnits} uds pron.</div>
+            </div>
+          </label>`;
+      }).join('');
+      // Toggle .selected class on click
+      grid.querySelectorAll('.multi-product-selector').forEach(lbl => {
+        lbl.addEventListener('change', () => {
+          lbl.classList.toggle('selected', lbl.querySelector('input').checked);
+        });
+      });
+      // Show section
+      document.getElementById('multiResults').style.display = 'none';
+      const container = document.getElementById('multiAnalysis');
+      container.classList.add('visible');
+      container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    document.getElementById('multiCloseBtn').addEventListener('click', () => {
+      document.getElementById('multiAnalysis').classList.remove('visible');
+    });
+
+    document.getElementById('multiCalcBtn').addEventListener('click', async () => {
+      const fixedCost = parseFloat(document.getElementById('multiFixedCost').value);
+      if (isNaN(fixedCost) || fixedCost <= 0) {
+        toast('Ingresa un costo fijo mayor a $0.', 'error');
+        return;
+      }
+      const checkedIds = [...document.querySelectorAll('.mp-check:checked')].map(cb => cb.value);
+      if (checkedIds.length < 2) {
+        toast('Selecciona al menos 2 productos para el análisis multiproducto.', 'error');
+        return;
+      }
+      const allProds = await getProducts();
+      const selected = checkedIds.map(id => allProds.find(p => p.id === id)).filter(Boolean);
+      const result = analyzeMultiEquilibrium(fixedCost, selected);
+
+      if (result.error) {
+        toast(result.error, 'error');
+        return;
+      }
+
+      // Fill KPIs
+      document.getElementById('mKpiPeGeneral').textContent = result.peGeneralUnits;
+      document.getElementById('mKpiFixedCost').textContent = fmt(fixedCost);
+      document.getElementById('mKpiCount').textContent = selected.length;
+
+      // Warning
+      const warnEl = document.getElementById('multiWarn');
+      if (result.warning) {
+        warnEl.textContent = result.warning;
+        warnEl.style.display = 'block';
+      } else {
+        warnEl.style.display = 'none';
+      }
+
+      // Table rows
+      document.getElementById('multiResultBody').innerHTML = result.products.map(p => `
+        <tr>
+          <td><strong>${p.name}</strong></td>
+          <td>${fmt(p.cmu)}</td>
+          <td>${p.participationPct}</td>
+          <td><span class="multi-pe-badge">⚖️ ${p.peUnits} uds</span></td>
+          <td>${fmt(p.pePesos)}</td>
+        </tr>
+      `).join('');
+
+      // Chart ─ build scenario data for the combined portfolio
+      const peGeneral = result.peGeneralUnits;
+      const maxUnits  = peGeneral === Infinity ? 200 : Math.round(peGeneral * 2.2);
+      const steps     = 20;
+      const labels    = [];
+      for (let i = 0; i <= steps; i++) labels.push(Math.round((maxUnits / steps) * i));
+
+      // Weighted average sale price and variable cost across selected products
+      const totalForecast = selected.reduce((s, p) => s + p.forecastUnits, 0);
+      const avgPV = selected.reduce((s, p) => s + p.salePrice * (p.forecastUnits / totalForecast), 0);
+      const avgCV = selected.reduce((s, p) => s + p.variableCost * (p.forecastUnits / totalForecast), 0);
+
+      const revenueData   = labels.map(u => u * avgPV);
+      const totalCostData = labels.map(u => fixedCost + u * avgCV);
+      const profitData    = labels.map(u => (u * avgPV) - (fixedCost + u * avgCV));
+
+      // Per-product revenue lines
+      const palette = [
+        { border: '#6366f1', bg: 'rgba(99,102,241,.08)' },
+        { border: '#10b981', bg: 'rgba(16,185,129,.08)' },
+        { border: '#f59e0b', bg: 'rgba(245,158,11,.08)' },
+        { border: '#ec4899', bg: 'rgba(236,72,153,.08)' },
+        { border: '#14b8a6', bg: 'rgba(20,184,166,.08)' },
+        { border: '#a78bfa', bg: 'rgba(167,139,250,.08)' },
+      ];
+
+      const productDatasets = result.products.map((rp, i) => {
+        const prod = selected.find(s => s.name === rp.name);
+        const col  = palette[i % palette.length];
+        return {
+          label: `Ingresos: ${rp.name}`,
+          data: labels.map(u => u * prod.salePrice * rp.participation),
+          borderColor: col.border,
+          backgroundColor: col.bg,
+          fill: false, tension: 0.35, pointRadius: 0, borderWidth: 2,
+          borderDash: []
+        };
+      });
+
+      // Point at intersection (PE): y = fixedCost + peGeneral * avgCV = peGeneral * avgPV
+      const peYValue = isFinite(peGeneral) ? peGeneral * avgPV : null;
+
+      const datasets = [
+        ...productDatasets,
+        {
+          label: 'Costos Totales Combinados',
+          data: labels.map(u => fixedCost + u * avgCV),
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239,68,68,.06)',
+          fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2.5
+        },
+        {
+          label: 'Utilidad/Pérdida Neta',
+          data: profitData,
+          borderColor: '#94a3b8',
+          backgroundColor: 'transparent',
+          fill: false, tension: 0.35, pointRadius: 0, borderWidth: 1.5,
+          borderDash: [5, 4]
+        },
+        // Intersection scatter point
+        ...(isFinite(peGeneral) ? [{
+          type: 'scatter',
+          label: `⚖️ Punto de Equilibrio (${peGeneral} uds)`,
+          data: [{ x: peGeneral, y: peYValue }],
+          backgroundColor: '#a5b4fc',
+          borderColor: '#ffffff',
+          borderWidth: 2,
+          pointRadius: 9,
+          pointHoverRadius: 12,
+          pointStyle: 'circle',
+          showLine: false
+        }] : [])
+      ];
+
+      if (multiChart) multiChart.destroy();
+      multiChart = new Chart(document.getElementById('multiChart'), {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          layout: { padding: { top: 20 } },
+          plugins: {
+            legend: {
+              labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 }, boxWidth: 12, padding: 14 },
+              position: 'top'
+            },
+            tooltip: {
+              backgroundColor: '#1a1a2e', borderColor: 'rgba(99,102,241,.3)', borderWidth: 1,
+              titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10,
+              callbacks: {
+                label: c => {
+                  if (c.dataset.type === 'scatter') return ` ⚖️ PE: ${c.parsed.x} uds | $${c.parsed.y.toLocaleString('es-CO')}`;
+                  return ` ${c.dataset.label}: $${c.parsed.y.toLocaleString('es-CO')}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              min: 0,
+              max: maxUnits,
+              ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 12, stepSize: Math.round(maxUnits / 10) },
+              grid: { color: 'rgba(255,255,255,.04)' },
+              title: { display: true, text: 'Unidades Totales', color: '#64748b', font: { size: 11 } }
+            },
+            y: {
+              ticks: {
+                color: '#64748b', font: { size: 11 },
+                callback: v => '$' + (v >= 1000000 ? (v/1000000).toFixed(1)+'M' : (v/1000).toFixed(0)+'K')
+              },
+              grid: { color: 'rgba(255,255,255,.04)' }
+            }
+          }
+        }
+      });
+
+      document.getElementById('multiResults').style.display = 'block';
+      document.getElementById('multiChart').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    // ── View state: 'active' or 'deleted' ──
+    let currentView = 'active';
+
+    function setView(view) {
+      currentView = view;
+      const menuProductos   = document.getElementById('menuProductos');
+      const menuEliminados  = document.getElementById('menuEliminados');
+      const menuInventario  = document.getElementById('menuInventario');
+      const sectionTitle    = document.getElementById('sectionTitle');
+      const headerActions   = document.getElementById('headerActions');
+      const productosCard   = document.getElementById('productosCard');
+      const inventoryAnalysis = document.getElementById('inventoryAnalysis');
+
+      menuProductos.classList.remove('active');
+      menuEliminados.classList.remove('active');
+      menuInventario.classList.remove('active');
+      
+      if (productosCard) productosCard.style.display = 'block';
+      if (inventoryAnalysis) inventoryAnalysis.style.display = 'none';
+
+      if (view === 'active') {
+        menuProductos.classList.add('active');
+        sectionTitle.textContent = 'Mis Productos';
+        headerActions.classList.remove('hidden');
+      } else if (view === 'deleted') {
+        menuEliminados.classList.add('active');
+        sectionTitle.textContent = '🗑️ Productos Eliminados';
+        headerActions.classList.add('hidden');
+      } else if (view === 'inventory') {
+        menuInventario.classList.add('active');
+        sectionTitle.textContent = '📊 Análisis de Inventario';
+        headerActions.classList.add('hidden');
+        if (productosCard) productosCard.style.display = 'none';
+        if (inventoryAnalysis) inventoryAnalysis.style.display = 'block';
+        renderInventoryAnalysis();
+      }
+      
+      if (view !== 'inventory') {
+        renderTabla();
+      }
+    }
+
+    document.getElementById('menuProductos').addEventListener('click', () => setView('active'));
+    document.getElementById('menuEliminados').addEventListener('click', () => setView('deleted'));
+    document.getElementById('menuInventario').addEventListener('click', () => setView('inventory'));
+
+    // ── Modal ──
+    let editingId = null;
+    const modalOverlay   = document.getElementById('modalOverlay');
+    const modalTitle     = document.getElementById('modalTitle');
+    const inputNombre    = document.getElementById('inputNombre');
+    const inputCostoFijo = document.getElementById('inputCostoFijo');
+    const inputCostoVar  = document.getElementById('inputCostoVar');
+    const inputPrecio    = document.getElementById('inputPrecio');
+    const inputUnidades  = document.getElementById('inputUnidades');
+    const inputStock     = document.getElementById('inputStock');
+    const modalError     = document.getElementById('modalError');
+    const btnGuardarText = document.getElementById('btnGuardarText');
+
+    function abrirModal(producto = null) {
+      editingId = producto ? producto.id : null;
+      modalTitle.textContent     = producto ? '✏️ Editar Producto' : '➕ Agregar Producto';
+      btnGuardarText.textContent = producto ? '💾 Actualizar' : '💾 Guardar';
+      inputNombre.value    = producto?.name          || '';
+      inputCostoFijo.value = producto?.fixedCost     ?? '';
+      inputCostoVar.value  = producto?.variableCost  ?? '';
+      inputPrecio.value    = producto?.salePrice     ?? '';
+      inputUnidades.value  = producto?.forecastUnits ?? '';
+      inputStock.value     = producto?.stock         ?? 0;
+      ocultarErrores();
+      actualizarMargenPreview();
+      modalOverlay.classList.remove('hidden');
+      inputNombre.focus();
+    }
+
+    function cerrarModal() {
+      modalOverlay.classList.add('hidden');
+      editingId = null;
+    }
+
+    document.getElementById('btnAbrirModal').addEventListener('click',    () => abrirModal());
+    document.getElementById('btnAgregarHeader').addEventListener('click', () => abrirModal());
+    document.getElementById('btnCerrarModal').addEventListener('click',   cerrarModal);
+    document.getElementById('btnCancelar').addEventListener('click',      cerrarModal);
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) cerrarModal(); });
+
+    function actualizarMargenPreview() {
+      const cv = parseFloat(inputCostoVar.value);
+      const pv = parseFloat(inputPrecio.value);
+      const preview     = document.getElementById('marginPreview');
+      const previewText = document.getElementById('marginPreviewText');
+      if (isFinite(cv) && isFinite(pv) && pv > 0) {
+        const cmu    = pv - cv;
+        const margen = (cmu / pv) * 100;
+        const emoji  = margen > 40 ? '🟢' : margen >= 20 ? '🟡' : '🔴';
+        previewText.textContent = `${emoji} Margen: $${cmu.toLocaleString('es-CO')} (${margen.toFixed(1)}%) — Contribución por unidad`;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+      }
+    }
+    [inputCostoVar, inputPrecio].forEach(el => el.addEventListener('input', actualizarMargenPreview));
+
+    function showFieldErr(inputEl, errorId, msg) {
+      inputEl.classList.add('error');
+      const el = document.getElementById(errorId);
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function ocultarErrores() {
+      [inputNombre, inputCostoFijo, inputCostoVar, inputPrecio, inputUnidades, inputStock]
+        .forEach(el => el.classList.remove('error'));
+      document.querySelectorAll('.form-error').forEach(e => e.classList.remove('visible'));
+      modalError.classList.add('hidden');
+    }
+
+    document.getElementById('btnGuardar').addEventListener('click', async () => {
+      ocultarErrores();
+      const nombre    = inputNombre.value.trim();
+      const costoFijo = parseFloat(inputCostoFijo.value);
+      const costoVar  = parseFloat(inputCostoVar.value);
+      const precio    = parseFloat(inputPrecio.value);
+      const unidades  = parseInt(inputUnidades.value);
+      let valido = true;
+
+      if (!nombre || nombre.length < 3) {
+        showFieldErr(inputNombre, 'errNombre', 'El nombre debe tener al menos 3 caracteres.');
+        valido = false;
+      }
+      if (isNaN(costoFijo) || costoFijo < 0) {
+        showFieldErr(inputCostoFijo, 'errCostoFijo', 'Ingresa un valor mayor o igual a 0.');
+        valido = false;
+      }
+      if (isNaN(costoVar) || costoVar < 0) {
+        showFieldErr(inputCostoVar, 'errCostoVar', 'Ingresa un valor mayor o igual a 0.');
+        valido = false;
+      }
+      if (isNaN(precio) || precio <= 0) {
+        showFieldErr(inputPrecio, 'errPrecio', 'El precio de venta debe ser mayor a $0.');
+        valido = false;
+      } else if (precio <= costoVar) {
+        showFieldErr(inputPrecio, 'errPrecio', 'El precio debe ser mayor al costo variable.');
+        valido = false;
+      }
+      if (isNaN(unidades) || unidades < 1) {
+        showFieldErr(inputUnidades, 'errUnidades', 'Ingresa al menos 1 unidad pronosticada.');
+        valido = false;
+      }
+      const stock = parseInt(inputStock.value) || 0;
+      if (stock < 0) {
+        showFieldErr(inputStock, 'errStock', 'El stock no puede ser negativo.');
+        valido = false;
+      }
+      if (!valido) return;
+
+      const data = { name: nombre, fixedCost: costoFijo, variableCost: costoVar, salePrice: precio, forecastUnits: unidades, stock };
+
+      if (editingId) {
+        await updateProduct(editingId, data);
+        toast('✅ Producto actualizado correctamente.', 'success');
+      } else {
+        await saveProduct(data);
+        toast('✅ Producto agregado correctamente.', 'success');
+      }
+      cerrarModal();
+      renderTabla();
+    });
+
+    // ── Confirm dialog ──
+    let _onConfirm = null;
+
+    function abrirConfirm(titulo, mensaje, onConfirm) {
+      document.getElementById('confirmTitulo').textContent = titulo;
+      document.getElementById('confirmMsg').textContent    = mensaje;
+      _onConfirm = onConfirm;
+      document.getElementById('confirmOverlay').classList.remove('hidden');
+    }
+
+    document.getElementById('confirmCancelar').addEventListener('click', () => {
+      document.getElementById('confirmOverlay').classList.add('hidden');
+      _onConfirm = null;
+    });
+    document.getElementById('confirmEliminar').addEventListener('click', async () => {
+      document.getElementById('confirmOverlay').classList.add('hidden');
+      if (_onConfirm) await _onConfirm();
+      _onConfirm = null;
+    });
+
+    // ── Render tabla ──
+    function getMargenBadge(pv, cv) {
+      const mc = pv - cv;
+      const m = (mc / pv) * 100;
+      const badge = m > 40 ? `<span class="badge badge-green">Alta ${m.toFixed(0)}%</span>` :
+                    m >= 20 ? `<span class="badge badge-yellow">Media ${m.toFixed(0)}%</span>` :
+                    `<span class="badge badge-red">Baja ${m.toFixed(0)}%</span>`;
+      return `<div style="font-weight:600">${fmt(mc)}</div><div style="margin-top:4px">${badge}</div>`;
+    }
+
+    // Add event listeners for date filters
+    document.getElementById('filterDesde').addEventListener('change', renderTabla);
+    document.getElementById('filterHasta').addEventListener('change', renderTabla);
+
+    async function updateDeletedCount() {
+      const deleted = await getDeletedProducts();
+      const countEl = document.getElementById('deletedCount');
+      if (deleted.length > 0) {
+        countEl.textContent = deleted.length;
+        countEl.classList.remove('hidden');
+      } else {
+        countEl.classList.add('hidden');
+      }
+    }
+
+    async function renderTabla() {
+      const isDeleted    = currentView === 'deleted';
+      const productos    = isDeleted ? await getDeletedProducts() : await getProducts();
+      
+      const filterDesde = document.getElementById('filterDesde').value;
+      const filterHasta = document.getElementById('filterHasta').value;
+      
+      let productosToRender = productos;
+      if (filterDesde || filterHasta) {
+        productosToRender = productos.filter(p => {
+          if (!p.createdAt) return true;
+          const pDateStr = p.createdAt.split('T')[0];
+          if (filterDesde && pDateStr < filterDesde) return false;
+          if (filterHasta && pDateStr > filterHasta) return false;
+          return true;
+        });
+      }
+
+      const body         = document.getElementById('productsBody');
+      const emptyState   = document.getElementById('emptyState');
+      const tableWrapper = document.getElementById('tableWrapper');
+      const subtitle     = document.getElementById('subtitleCount');
+      const emptyMsg     = document.getElementById('emptyMsg');
+      const emptyHint    = document.getElementById('emptyHint');
+      const tableHead    = document.getElementById('tableHead');
+
+      // Update table headers based on view
+      const commonHeaders = `
+        <th>Producto</th>
+        <th>Costos y Precio</th>
+        <th>Stock</th>
+        <th>Punto de Eq. (uds / $)</th>
+        <th>Margen (Contribución)</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      `;
+      tableHead.innerHTML = commonHeaders;
+
+      if (isDeleted) {
+        subtitle.textContent = productosToRender.length === 0
+          ? 'No hay productos eliminados.'
+          : `${productosToRender.length} producto${productosToRender.length > 1 ? 's' : ''} eliminado${productosToRender.length > 1 ? 's' : ''}`;
+        emptyMsg.textContent = 'No hay productos eliminados.';
+        emptyHint.innerHTML = 'Los productos que elimines aparecerán aquí para que puedas recuperarlos.';
+      } else {
+        subtitle.textContent = productosToRender.length === 0
+          ? 'No hay productos registrados.'
+          : `${productosToRender.length} producto${productosToRender.length > 1 ? 's' : ''} registrado${productosToRender.length > 1 ? 's' : ''}`;
+        emptyMsg.textContent = 'No tienes productos registrados aún.';
+        emptyHint.innerHTML = 'Haz clic en <strong>➕ Agregar Producto</strong> para comenzar.';
+      }
+
+      if (!productosToRender.length) {
+        tableWrapper.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        updateDeletedCount();
+        return;
+      }
+
+      tableWrapper.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+
+      if (isDeleted) {
+        // ── Render deleted products ──
+        body.innerHTML = productosToRender.map(p => {
+          const cmu = p.salePrice - p.variableCost;
+          const peUnits = cmu > 0 ? Math.ceil(p.fixedCost / cmu) : Infinity;
+          const pePesos = cmu > 0 ? peUnits * p.salePrice : Infinity;
+          return `
+          <tr>
+            <td>
+              <strong>${p.name}</strong>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                Eliminado: ${p.deletedAt ? new Date(p.deletedAt).toLocaleDateString('es-CO') : '—'}
+              </div>
+            </td>
+            <td>
+              <div style="font-size:12px"><span style="color:var(--text-muted)">CF:</span> ${fmt(p.fixedCost)}</div>
+              <div style="font-size:12px"><span style="color:var(--text-muted)">CV:</span> ${fmt(p.variableCost)}</div>
+              <div style="font-size:12px"><span style="color:var(--text-muted)">PV:</span> ${fmt(p.salePrice)}</div>
+            </td>
+            <td>
+              <div style="font-weight:600">${p.stock || 0}</div>
+            </td>
+            <td>
+              <div style="font-weight:600">${isFinite(peUnits) ? peUnits + ' uds' : '∞'}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${isFinite(pePesos) ? fmt(pePesos) : '∞'}</div>
+            </td>
+            <td>${getMargenBadge(p.salePrice, p.variableCost)}</td>
+            <td>
+              <span class="deleted-badge">Eliminado</span>
+            </td>
+            <td>
+              <div class="td-actions">
+                <button class="btn-restore" data-restore="${p.id}">🔄 Recuperar</button>
+              </div>
+            </td>
+          </tr>
+        `}).join('');
+
+        body.querySelectorAll('[data-restore]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const pid = btn.dataset.restore;
+            const ok = await restoreProduct(pid);
+            if (ok) {
+              toast('✅ Producto recuperado exitosamente.', 'success');
+              renderTabla();
+            } else {
+              toast('❌ Error al recuperar el producto.', 'error');
+            }
+          });
+        });
+      } else {
+        // ── Render active products ──
+        body.innerHTML = productosToRender.map(p => {
+          const cmu = p.salePrice - p.variableCost;
+          const peUnits = cmu > 0 ? Math.ceil(p.fixedCost / cmu) : Infinity;
+          const pePesos = cmu > 0 ? peUnits * p.salePrice : Infinity;
+          return `
+          <tr>
+            <td>
+              <strong>${p.name}</strong>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                Creado: ${p.createdAt ? new Date(p.createdAt).toLocaleDateString('es-CO') : '—'}
+              </div>
+            </td>
+            <td>
+              <div style="font-size:12px"><span style="color:var(--text-muted)">CF:</span> ${fmt(p.fixedCost)}</div>
+              <div style="font-size:12px"><span style="color:var(--text-muted)">CV:</span> ${fmt(p.variableCost)}</div>
+              <div style="font-size:12px"><span style="color:var(--text-muted)">PV:</span> ${fmt(p.salePrice)}</div>
+            </td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-weight:600">${p.stock || 0}</span>
+                ${(p.stock || 0) < peUnits ? '<span title="Stock por debajo del Punto de Equilibrio" style="cursor:help;">⚠️</span>' : ''}
+              </div>
+            </td>
+            <td>
+              <div style="font-weight:600">${isFinite(peUnits) ? peUnits + ' uds' : '∞'}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${isFinite(pePesos) ? fmt(pePesos) : '∞'}</div>
+            </td>
+            <td>${getMargenBadge(p.salePrice, p.variableCost)}</td>
+            <td>
+              <span class="badge" style="background:rgba(99,102,241,.12);color:var(--primary-light);border:1px solid var(--border)">
+                Activo
+              </span>
+            </td>
+            <td>
+              <div class="td-actions">
+                <button class="btn btn-secondary btn-sm" data-view="${p.id}" title="Ver Análisis">📊</button>
+                <button class="btn btn-secondary btn-sm" data-edit="${p.id}" title="Editar">✏️</button>
+                <button class="btn btn-danger btn-sm"    data-del="${p.id}" title="Eliminar">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `}).join('');
+
+        body.querySelectorAll('tr').forEach(tr => {
+          tr.addEventListener('click', async (e) => {
+            if (e.target.closest('button') || e.target.closest('a') || currentView === 'deleted') return;
+            const btnView = tr.querySelector('[data-view]');
+            if (btnView) {
+              const pid = btnView.dataset.view;
+              const productos = await getProducts();
+              const p = productos.find(x => x.id === pid);
+              if (p) showInlineAnalysis(p);
+            }
+          });
+        });
+
+        body.querySelectorAll('[data-view]').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const productos = await getProducts();
+            const p = productos.find(x => x.id === btn.dataset.view);
+            if (p) showInlineAnalysis(p);
+          });
+        });
+
+        body.querySelectorAll('[data-edit]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const productos = await getProducts();
+            const p = productos.find(x => x.id === btn.dataset.edit);
+            if (p) abrirModal(p);
+          });
+        });
+
+        body.querySelectorAll('[data-del]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const productos = await getProducts();
+            const p = productos.find(x => x.id === btn.dataset.del);
+            if (!p) return;
+            abrirConfirm(
+              '¿Eliminar producto?',
+              `"${p.name}" se moverá a productos eliminados. Podrás recuperarlo después.`,
+              async () => { await deleteProduct(p.id); renderTabla(); toast('🗑️ Producto eliminado. Puedes recuperarlo en "Productos eliminados".', 'info'); }
+            );
+          });
+        });
+      }
+
+      updateDeletedCount();
+    }
+
+    // ── Inline Analysis Logic ──
+    let currentChart = null;
+    let multiChart   = null;
+    let currentAnalysisProduct = null;
+    let currentAnalysisData = null;
+
+    function showInlineAnalysis(product) {
+      currentAnalysisProduct = product;
+      currentAnalysisData = analyzeProduct(product);
+      
+      document.getElementById('iaTitle').textContent = `Análisis: ${product.name}`;
+      document.getElementById('iaReportBtn').href = `report.html?id=${product.id}`;
+      
+      // KPIs
+      document.getElementById('iaKpiContrib').textContent = fmt(currentAnalysisData.contribution);
+      document.getElementById('iaKpiContribPct').textContent = `${currentAnalysisData.marginPct.toFixed(1)}% del precio de venta`;
+      document.getElementById('iaKpiPeUnits').textContent = isFinite(currentAnalysisData.peUnits) ? currentAnalysisData.peUnits : '∞';
+      document.getElementById('iaKpiPeMoney').textContent = fmt(currentAnalysisData.peMoney);
+      
+      // Recommendation
+      const recCard = document.getElementById('iaRecommendation');
+      recCard.className = `recommendation-card rec-${currentAnalysisData.recLevel}`;
+      document.getElementById('iaRecTitle').textContent =
+        currentAnalysisData.recLevel === 'high' ? '🟢 Alta Rentabilidad' :
+        currentAnalysisData.recLevel === 'medium' ? '🟡 Rentabilidad Media' : '🔴 Margen Bajo';
+      document.getElementById('iaRecText').textContent = currentAnalysisData.recommendation;
+      
+      // Chart
+      if (currentChart) {
+        currentChart.destroy();
+      }
+      
+      const ctx = document.getElementById('iaChart').getContext('2d');
+      currentChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: currentAnalysisData.scenarios.map(s => s.units),
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: currentAnalysisData.scenarios.map(s => s.revenue),
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16,185,129,.1)',
+              fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2.5
+            },
+            {
+              label: 'Costos Totales',
+              data: currentAnalysisData.scenarios.map(s => s.totalCost),
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239,68,68,.07)',
+              fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2.5
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 }, boxWidth: 12 } },
+            tooltip: {
+              backgroundColor: '#1a1a2e', borderColor: 'rgba(99,102,241,.3)', borderWidth: 1,
+              titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10,
+              callbacks: { label: (c) => ` ${c.dataset.label}: $${c.parsed.y.toLocaleString('es-CO')}` }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.05)' }, title: { display: true, text: 'Unidades', color: '#64748b' } },
+            y: { ticks: { color: '#64748b', font: { size: 11 }, callback: (v) => '$' + (v/1000).toFixed(0) + 'K' }, grid: { color: 'rgba(255,255,255,.05)' } }
+          }
+        }
+      });
+      
+      const container = document.getElementById('inlineAnalysis');
+      container.classList.add('visible');
+      container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.getElementById('iaCloseBtn').addEventListener('click', () => {
+      document.getElementById('inlineAnalysis').classList.remove('visible');
+    });
+
+    // ── Toast ──
+    function toast(msg, type = 'info') {
+      const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+      const container = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.innerHTML = `<span>${icons[type]}</span> ${msg}`;
+      container.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+
+    // ── Inventory Analysis Render ──
+    let inventoryChartObj = null;
+
+    async function renderInventoryAnalysis() {
+      const productos = await getProducts();
+      if (!productos.length) {
+        toast('No tienes productos activos.', 'info');
+        return;
+      }
+
+      const analyzed = analyzeInventory(productos);
+
+      // Render chart
+      const labels = analyzed.map(p => p.name);
+      const stockData = analyzed.map(p => p.stock);
+      const peData = analyzed.map(p => isFinite(p.peUnits) ? p.peUnits : 0);
+
+      // Bar colors
+      const bgColors = analyzed.map(p => p.status === 'ok' ? 'rgba(16,185,129,.8)' : p.status === 'warning' ? 'rgba(234,179,8,.8)' : 'rgba(239,68,68,.8)');
+
+      if (inventoryChartObj) inventoryChartObj.destroy();
+      const ctx = document.getElementById('inventoryChart').getContext('2d');
+      inventoryChartObj = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Stock Actual',
+              data: stockData,
+              backgroundColor: bgColors,
+              borderRadius: 4
+            },
+            {
+              label: 'Punto de Eq.',
+              data: peData,
+              type: 'line',
+              borderColor: '#94a3b8',
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 4,
+              pointBackgroundColor: '#94a3b8'
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          indexAxis: 'y', // Horizontal bars
+          plugins: {
+            legend: { labels: { color: '#94a3b8' } },
+            tooltip: { backgroundColor: '#1a1a2e', titleColor: '#f1f5f9', bodyColor: '#94a3b8' }
+          },
+          scales: {
+            x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,.05)' } },
+            y: { ticks: { color: '#64748b' }, grid: { display: false } }
+          }
+        }
+      });
+
+      // Render table
+      // Sort by margin desc
+      analyzed.sort((a, b) => b.marginPct - a.marginPct);
+      
+      const tbody = document.getElementById('inventoryResultBody');
+      tbody.innerHTML = analyzed.map(p => `
+        <tr>
+          <td><strong>${p.name}</strong></td>
+          <td>${p.marginPct.toFixed(1)}%</td>
+          <td>${p.stock}</td>
+          <td>${isFinite(p.peUnits) ? p.peUnits : '∞'}</td>
+          <td>${p.gap !== null && p.gap > 0 ? `<span style="color:#fca5a5; font-weight: 600;">+${p.gap}</span>` : '<span style="color:#10b981">OK</span>'}</td>
+          <td>
+            <span class="badge" style="background:${p.priority === 3 ? 'rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.3)' : p.priority === 2 ? 'rgba(234,179,8,.12);color:#f59e0b;border:1px solid rgba(234,179,8,.3)' : 'rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3)'};font-weight:700">
+              ${p.priorityLabel}
+            </span>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Default init
+    setView('active');
+  </script>
+
+</body>
+</html>

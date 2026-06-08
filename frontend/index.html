@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyBudget — Simulador de Punto de Equilibrio</title>
+  <meta name="description" content="EasyBudget: calcula fácilmente el punto de equilibrio de tu negocio.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="auth-page">
+  <script type="module">
+    import { getSession } from './js/auth.js';
+    if (getSession()) {
+      window.location.href = 'pages/dashboard.html';
+    } else {
+      window.location.href = 'pages/login.html';
+    }
+  </script>
+  <noscript>
+    <p style="text-align:center;color:#fff;margin-top:50px">
+      Por favor habilita JavaScript para usar EasyBudget.
+      <a href="pages/login.html">Ir al login</a>
+    </p>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reporte — EasyBudget</title>
+  <meta name="description" content="Reporte completo del análisis de punto de equilibrio.">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    .report-page { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+    .report-brand {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 6px;
+    }
+    .report-date { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .report-kpis {
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; color: #000; }
+    }
+    .table-wrapper { overflow: visible !important; }
+  </style>
+</head>
+<body class="auth-page" style="align-items:flex-start; padding: 0;">
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="report-page" id="reportContent">
+    <!-- Header -->
+    <div class="report-header no-print">
+      <div class="nav-brand" style="gap:12px">
+        <div class="logo-icon">💰</div>
+        <span class="logo-text">EasyBudget</span>
+      </div>
+      <div style="display:flex; gap:10px">
+        <a href="dashboard.html" class="btn btn-secondary btn-sm">← Volver</a>
+        <button class="btn btn-accent btn-sm" id="pdfBtn">🖨️ Descargar PDF</button>
+      </div>
+    </div>
+
+    <!-- Print header -->
+    <div id="printHeader" style="display:none">
+      <div class="report-brand">
+        <div class="logo-icon" style="width:32px;height:32px;font-size:16px">💰</div>
+        <span class="logo-text" style="font-size:18px">EasyBudget</span>
+      </div>
+    </div>
+
+    <h1 style="font-size:26px; font-weight:800; margin-bottom:4px" id="reportTitle">—</h1>
+    <div class="report-date" id="reportDate">—</div>
+
+    <!-- KPIs -->
+    <div class="report-kpis">
+      <div class="kpi-card">
+        <div class="kpi-icon">💡</div>
+        <div class="kpi-label">Margen de Contribución</div>
+        <div class="kpi-value" id="rKpiContrib">—</div>
+        <div class="kpi-sub" id="rKpiContribPct">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">⚖️</div>
+        <div class="kpi-label">Punto de Equilibrio</div>
+        <div class="kpi-value" id="rKpiPeUnits">—</div>
+        <div class="kpi-sub">unidades necesarias</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">💵</div>
+        <div class="kpi-label">PE en Ingresos</div>
+        <div class="kpi-value" id="rKpiPeMoney">—</div>
+        <div class="kpi-sub">ingresos mínimos</div>
+      </div>
+    </div>
+
+    <!-- Recommendation -->
+    <div id="rRecommendation" class="recommendation-card" style="margin-bottom:28px">
+      <div class="rec-title" id="rRecTitle">—</div>
+      <div class="rec-text" id="rRecText">—</div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-title"><span class="card-icon">📈</span> Curva de Punto de Equilibrio</div>
+      <div class="chart-container" style="height:280px">
+        <canvas id="rChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Detail Table -->
+    <div class="card" style="margin-bottom:28px">
+      <div class="card-title"><span class="card-icon">📋</span> Datos del Producto</div>
+      <table>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Scenario Table -->
+    <div class="card">
+      <div class="card-title"><span class="card-icon">📊</span> Tabla de Escenarios</div>
+      <div class="table-wrapper">
+        <table class="scenario-table">
+          <thead>
+            <tr>
+              <th>Unidades Vendidas</th>
+              <th>Ingresos Totales</th>
+              <th>Costo Total</th>
+              <th>Utilidad / Pérdida</th>
+            </tr>
+          </thead>
+          <tbody id="rScenarioBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <p style="text-align:center; color:var(--text-muted); font-size:12px; margin-top:28px">
+      Generado por EasyBudget · <span id="footerDate">—</span>
+    </p>
+  </div>
+
+  <script type="module">
+    import { requireAuth } from '../js/auth.js';
+    import { getProductById, analyzeProduct, fmt } from '../js/products.js';
+
+    requireAuth();
+
+    /* ── Load product from URL (async) ── */
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get('id');
+    const product = pid ? await getProductById(pid) : null;
+
+    if (!product) {
+      document.querySelector('.report-page').innerHTML =
+        '<div class="empty-state"><div class="empty-icon">😕</div><p>Producto no encontrado. <a href="dashboard.html">Volver al dashboard</a></p></div>';
+      throw new Error('No product');
+    }
+
+    const analysis = analyzeProduct(product);
+    const now = new Date().toLocaleDateString('es-CO', { dateStyle: 'long' });
+
+    /* ── Header ── */
+    document.getElementById('reportTitle').textContent = `Análisis: ${product.name}`;
+    document.getElementById('reportDate').textContent = `Generado el ${now}`;
+    document.getElementById('footerDate').textContent = now;
+
+    /* ── KPIs ── */
+    document.getElementById('rKpiContrib').textContent = fmt(analysis.contribution);
+    document.getElementById('rKpiContribPct').textContent = `${analysis.marginPct.toFixed(1)}% del precio de venta`;
+    document.getElementById('rKpiPeUnits').textContent = isFinite(analysis.peUnits) ? analysis.peUnits : '∞';
+    document.getElementById('rKpiPeMoney').textContent = fmt(analysis.peMoney);
+
+    /* ── Recommendation ── */
+    const recCard = document.getElementById('rRecommendation');
+    recCard.className = `recommendation-card rec-${analysis.recLevel}`;
+    document.getElementById('rRecTitle').textContent =
+      analysis.recLevel === 'high' ? '🟢 Alta Rentabilidad' :
+      analysis.recLevel === 'medium' ? '🟡 Rentabilidad Media' : '🔴 Margen Bajo';
+    document.getElementById('rRecText').textContent = analysis.recommendation;
+
+    /* ── Detail Table ── */
+    const details = [
+      ['Nombre del Producto', product.name],
+      ['Costo Fijo Mensual', fmt(product.fixedCost)],
+      ['Costo Variable Unitario', fmt(product.variableCost)],
+      ['Precio de Venta Unitario', fmt(product.salePrice)],
+      ['Margen de Contribución ($)', fmt(analysis.contribution)],
+      ['Margen de Contribución (%)', analysis.marginPct.toFixed(2) + '%'],
+      ['Punto de Equilibrio (unidades)', isFinite(analysis.peUnits) ? analysis.peUnits : '∞'],
+      ['Punto de Equilibrio (ingresos)', fmt(analysis.peMoney)],
+    ];
+    document.getElementById('detailBody').innerHTML = details.map(([k, v]) =>
+      `<tr><td style="color:var(--text-muted);font-weight:500;width:50%">${k}</td><td style="font-weight:600">${v}</td></tr>`
+    ).join('');
+
+    /* ── Scenario Table ── */
+    document.getElementById('rScenarioBody').innerHTML = analysis.scenarios.map(s => {
+      const cls = s.profit > 0 ? 'profit-pos' : s.profit < 0 ? 'profit-neg' : '';
+      const rowCls = s.units === analysis.peUnits ? 'pe-row' : '';
+      return `<tr class="${rowCls}">
+        <td>${s.units}${rowCls ? ' ⚖️' : ''}</td>
+        <td>${fmt(s.revenue)}</td>
+        <td>${fmt(s.totalCost)}</td>
+        <td class="${cls}">${fmt(s.profit)}</td>
+      </tr>`;
+    }).join('');
+
+    /* ── Chart ── */
+    new Chart(document.getElementById('rChart'), {
+      type: 'line',
+      data: {
+        labels: analysis.scenarios.map(s => s.units),
+        datasets: [
+          {
+            label: 'Ingresos',
+            data: analysis.scenarios.map(s => s.revenue),
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16,185,129,.1)',
+            fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2.5
+          },
+          {
+            label: 'Costos Totales',
+            data: analysis.scenarios.map(s => s.totalCost),
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,.07)',
+            fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2.5
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 }, boxWidth: 12 } },
+          tooltip: {
+            backgroundColor: '#1a1a2e', borderColor: 'rgba(99,102,241,.3)', borderWidth: 1,
+            titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10,
+            callbacks: { label: (c) => ` ${c.dataset.label}: $${c.parsed.y.toLocaleString('es-CO')}` }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.05)' }, title: { display: true, text: 'Unidades', color: '#64748b' } },
+          y: { ticks: { color: '#64748b', font: { size: 11 }, callback: (v) => '$' + (v/1000).toFixed(0) + 'K' }, grid: { color: 'rgba(255,255,255,.05)' } }
+        }
+      }
+    });
+
+    /* ── Toast ── */
+    function toast(msg, type='success') {
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.innerHTML = `<span>${type==='success'?'✅':'ℹ️'}</span> ${msg}`;
+      document.getElementById('toastContainer').appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+
+    /* ── PDF ── */
+    document.getElementById('pdfBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('pdfBtn');
+      btn.disabled = true;
+      btn.textContent = 'Generando…';
+      document.getElementById('printHeader').style.display = 'block';
+      const noprint = document.querySelectorAll('.no-print');
+      noprint.forEach(el => el.style.display = 'none');
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const canvas = await html2canvas(document.getElementById('reportContent'), {
+          scale: 2, backgroundColor: '#0f0f1a', logging: false,
+          useCORS: true
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgW = pageW;
+        const imgH = (canvas.height * imgW) / canvas.width;
+        
+        let heightLeft = imgH;
+        let position = 0;
+
+        pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+        heightLeft -= pageH;
+
+        while (heightLeft > 0) {
+          position = heightLeft - imgH;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+          heightLeft -= pageH;
+        }
+
+        pdf.save(`EasyBudget_${product.name.replace(/\s+/g,'_')}.pdf`);
+        toast('PDF descargado exitosamente.');
+      } catch(err) {
+        toast('Error al generar PDF. Intenta de nuevo.', 'error');
+      } finally {
+        noprint.forEach(el => el.style.display = '');
+        document.getElementById('printHeader').style.display = 'none';
+        btn.disabled = false;
+        btn.textContent = '🖨️ Descargar PDF';
+      }
+    });
+  </script>
+</body>
+</html>
