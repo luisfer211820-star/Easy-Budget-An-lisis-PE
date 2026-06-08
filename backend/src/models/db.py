@@ -6,8 +6,13 @@ Database file is stored at backend/src/easybudget.db.
 import os
 import sqlite3
 
-# Resolve the database path relative to this file's directory (backend/src/)
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "easybudget.db")
+# Resolve the database path: use /tmp on Render (ephemeral but writable),
+# otherwise store next to this file locally.
+_src_dir = os.path.dirname(os.path.abspath(__file__))
+if os.environ.get("RENDER"):
+    DB_PATH = "/tmp/easybudget.db"
+else:
+    DB_PATH = os.path.join(os.path.dirname(_src_dir), "easybudget.db")
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
