@@ -502,7 +502,7 @@
   <!-- CONFIRM Eliminar -->
   <div class="confirm-overlay hidden" id="confirmOverlay">
     <div class="confirm-card">
-      <div class="confirm-icon">🗑️</div>
+      <div class="confirm-icon" id="confirmIcon">🗑️</div>
       <h4 id="confirmTitulo">¿Eliminar producto?</h4>
       <p id="confirmMsg">Esta acción no se puede deshacer.</p>
       <div class="confirm-actions">
@@ -525,7 +525,7 @@
     document.getElementById('userAvatar').textContent = session.name.charAt(0).toUpperCase();
 
     document.getElementById('logoutBtn').addEventListener('click', () => {
-      abrirConfirm('¿Cerrar sesión?', 'Se cerrará tu sesión actual.', () => logout());
+      abrirConfirm('¿Cerrar sesión?', 'Se cerrará tu sesión actual.', () => logout(), { icono: '🚪', btnLabel: 'Salir' });
     });
 
     // ── Multiproduct Analysis ──
@@ -906,9 +906,11 @@
     // ── Confirm dialog ──
     let _onConfirm = null;
 
-    function abrirConfirm(titulo, mensaje, onConfirm) {
-      document.getElementById('confirmTitulo').textContent = titulo;
-      document.getElementById('confirmMsg').textContent    = mensaje;
+    function abrirConfirm(titulo, mensaje, onConfirm, { icono = '🗑️', btnLabel = 'Eliminar' } = {}) {
+      document.getElementById('confirmTitulo').textContent  = titulo;
+      document.getElementById('confirmMsg').textContent     = mensaje;
+      document.getElementById('confirmIcon').textContent    = icono;
+      document.getElementById('confirmEliminar').textContent = btnLabel;
       _onConfirm = onConfirm;
       document.getElementById('confirmOverlay').classList.remove('hidden');
     }
